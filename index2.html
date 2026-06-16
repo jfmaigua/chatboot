@@ -17,7 +17,7 @@
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 320px 1fr;
             gap: 20px;
         }
         .sidebar {
@@ -87,6 +87,31 @@
             font-size: 0.85rem;
             color: #666;
         }
+        .extract-box {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            display: none;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .tag {
+            display: inline-block;
+            background: #2c3e76;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-right: 5px;
+        }
     </style>
 </head>
 <body>
@@ -95,7 +120,11 @@
         <h3>📄 Cargar PDF</h3>
         <input type="file" id="pdfUpload" accept=".pdf">
         <div class="file-info" id="pdfStatus">⚠️ Ningún PDF cargado</div>
-        <div id="extractedText" style="display:none;"></div>
+        
+        <div class="extract-box" id="extractBox">
+            <strong>📖 Texto extraído (primeros 500 caracteres):</strong>
+            <div id="extractedPreview"></div>
+        </div>
         
         <hr>
         <h4>📊 Métricas del estudio</h4>
@@ -115,12 +144,15 @@
         </div>
         <div class="metrics">
             <span>📌 Última pregunta: <span id="lastQuestion">—</span></span>
+            <span id="pageInfo">📄 Páginas: 0</span>
         </div>
     </div>
 </div>
 
 <script>
     let pdfText = "";
+    let pdfPages = 0;
+    let pdfName = "";
     let questionCounter = 0;
     let timerSeconds = 0;
     let timerInterval = null;
@@ -132,6 +164,9 @@
     const clearChatBtn = document.getElementById('clearChat');
     const pdfUpload = document.getElementById('pdfUpload');
     const pdfStatus = document.getElementById('pdfStatus');
+    const extractBox = document.getElementById('extractBox');
+    const extractedPreview = document.getElementById('extractedPreview');
+    const pageInfo = document.getElementById('pageInfo');
     
     // Temporizador
     function startTimer() {
@@ -154,58 +189,132 @@
         chatArea.scrollTop = chatArea.scrollHeight;
     }
     
-    // Buscar respuesta en el PDF (búsqueda simple por palabras clave)
+    // Función mejorada para buscar en el PDF
     function buscarEnPDF(pregunta) {
-        if (!pdfText) {
-            return "⚠️ Primero carga un PDF usando el botón de la izquierda.";
+        if (!pdfText || pdfText.length < 10) {
+            return "⚠️ Primero carga un PDF con texto válido. Asegúrate de que el PDF no sea solo imágenes escaneadas.";
         }
         
-        const palabras = pregunta.toLowerCase().split(/\s+/);
-        const oraciones = pdfText.split(/[.!?]+/);
+        // Mostrar estadísticas del texto para depuración
+        console.log(`📊 Texto extraído: ${pdfText.length} caracteres, ${pdfText.split(/\s+/).length} palabras`);
         
-        // Buscar oraciones que contengan palabras clave
+        // Limpiar y preparar la pregunta
+        const palabrasClave = pregunta.toLowerCase()
+            .replace(/[¿?¡!.,;:()]/g, '')
+            .split(/\s+/)
+            .filter(p => p.length > 3);
+        
+        if (palabrasClave.length === 0) {
+            return "📖 Por favor, formula una pregunta más específica con palabras clave.";
+        }
+        
+        // Dividir el PDF en secciones (párrafos)
+        const secciones = pdfText.split(/\n\s*\n/);
         let mejoresRespuestas = [];
-        for (let oracion of oraciones) {
+        
+        for (let seccion of secciones) {
+            seccion = seccion.trim();
+            if (seccion.length < 20) continue;
+            
             let puntaje = 0;
-            for (let palabra of palabras) {
-                if (palabra.length > 3 && oracion.toLowerCase().includes(palabra)) {
-                    puntaje++;
+            for (let palabra of palabrasClave) {
+                // Búsqueda exacta y con variantes
+                if (seccion.toLowerCase().includes(palabra)) {
+                    puntaje += 2;
+                }
+                // Búsqueda de palabras relacionadas (sin acentos)
+                const palabraSinAcento = palabra.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                if (seccion.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(palabraSinAcento)) {
+                    puntaje += 1;
                 }
             }
-            if (puntaje > 0 && oracion.trim().length > 20) {
-                mejoresRespuestas.push({ texto: oracion.trim(), puntaje });
+            
+            // Bonus si la sección contiene varias palabras clave
+            if (puntaje > 0) {
+                // Limpiar el texto de caracteres extraños
+                let textoLimpio = seccion.replace(/[-ÿ]/g, ' ').replace(/\s+/g, ' ');
+                mejoresRespuestas.push({ 
+                    texto: textoLimpio, 
+                    puntaje: puntaje,
+                    palabrasEncontradas: palabrasClave.filter(p => seccion.toLowerCase().includes(p)).length
+                });
             }
         }
         
         // Ordenar por relevancia
-        mejoresRespuestas.sort((a,b) => b.puntaje - a.puntaje);
+        mejoresRespuestas.sort((a, b) => b.puntaje - a.puntaje);
         
         if (mejoresRespuestas.length === 0) {
-            return "📖 No encontré información específica en el PDF sobre eso. ¿Podrías reformular tu pregunta o consultar otra sección del documento?";
+            return "📖 No encontré información específica en el PDF sobre eso. El texto del PDF parece ser:\n\n" + 
+                   pdfText.substring(0, 300) + "...\n\n💡 Intenta preguntar sobre conceptos como: personalidad, teoría, Freud, psicología, etc.";
         }
         
-        // Devolver los 2 fragmentos más relevantes
+        // Construir respuesta con los fragmentos más relevantes
         let respuesta = "📄 **Según el PDF:**\n\n";
-        for (let i = 0; i < Math.min(2, mejoresRespuestas.length); i++) {
-            respuesta += `• ${mejoresRespuestas[i].texto}.\n\n`;
+        const maxFragmentos = Math.min(3, mejoresRespuestas.length);
+        
+        for (let i = 0; i < maxFragmentos; i++) {
+            const frag = mejoresRespuestas[i];
+            // Truncar si es muy largo
+            let texto = frag.texto;
+            if (texto.length > 400) {
+                texto = texto.substring(0, 400) + "...";
+            }
+            respuesta += `📌 *Fragmento ${i+1}:*\n${texto}\n\n`;
         }
-        respuesta += "\n💡 *Recuerda que el chatbot busca textualmente en el documento.*";
+        
+        respuesta += "\n💡 *Nota: El chatbot extrae fragmentos textuales del PDF. La precisión depende de la calidad del texto extraído.*";
         
         return respuesta;
     }
     
-    // Leer PDF con pdf.js
+    // Leer PDF con pdf.js mejorado
     async function leerPDF(file) {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let textoCompleto = "";
+        pdfPages = pdf.numPages;
         
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
-            textoCompleto += pageText + "\n";
+            
+            // Extraer texto con metadatos de posición para preservar estructura
+            let pageText = "";
+            let lastY = null;
+            let currentLine = "";
+            
+            // Ordenar items por posición Y (vertical) para mantener el orden de lectura
+            const items = textContent.items.sort((a, b) => a.transform[5] - b.transform[5]);
+            
+            for (let item of items) {
+                const str = item.str.trim();
+                if (!str) continue;
+                
+                const y = item.transform[5];
+                if (lastY !== null && Math.abs(y - lastY) > 5) {
+                    // Cambio de línea
+                    if (currentLine) {
+                        pageText += currentLine + "\n";
+                        currentLine = "";
+                    }
+                }
+                currentLine += str + " ";
+                lastY = y;
+            }
+            if (currentLine) {
+                pageText += currentLine + "\n";
+            }
+            
+            // Limpiar caracteres extraños
+            pageText = pageText.replace(/[-ÿ]/g, ' ').replace(/\s+/g, ' ');
+            
+            // Agregar separador de página
+            textoCompleto += `=== PÁGINA ${i} ===\n${pageText}\n\n`;
         }
+        
+        // Limpieza final
+        textoCompleto = textoCompleto.replace(/[^\w\s\.,;:!?¡¿()\-áéíóúñÑÁÉÍÓÚ]/g, ' ').replace(/\s+/g, ' ');
         
         return textoCompleto;
     }
@@ -215,16 +324,34 @@
         const file = e.target.files[0];
         if (!file) return;
         
-        pdfStatus.textContent = "⏳ Leyendo PDF...";
+        pdfName = file.name;
+        pdfStatus.innerHTML = "⏳ Leyendo PDF... Esto puede tomar unos segundos...";
         
         try {
             pdfText = await leerPDF(file);
-            pdfStatus.innerHTML = `✅ PDF cargado: ${file.name}<br>📄 ${Math.round(pdfText.length/1000)} KB extraídos`;
-            addMessage(`📚 PDF "${file.name}" cargado exitosamente. ¡Puedes preguntarme sobre su contenido!`, 'bot');
+            
+            if (pdfText.length < 100) {
+                throw new Error("El PDF parece estar escaneado o no contiene texto extraíble.");
+            }
+            
+            // Mostrar vista previa del texto extraído
+            extractBox.style.display = 'block';
+            const preview = pdfText.substring(0, 500) + (pdfText.length > 500 ? '...' : '');
+            extractedPreview.textContent = preview;
+            
+            pageInfo.textContent = `📄 Páginas: ${pdfPages}`;
+            
+            // Mostrar estadísticas del texto
+            const palabras = pdfText.split(/\s+/).length;
+            pdfStatus.innerHTML = `✅ <strong>PDF cargado:</strong> ${file.name}<br>📄 ${pdfPages} páginas, ${Math.round(pdfText.length/1000)} KB, ${palabras} palabras`;
+            
+            addMessage(`📚 PDF "${file.name}" cargado exitosamente.\n📄 ${pdfPages} páginas extraídas.\n💬 ¡Puedes preguntarme sobre su contenido!`, 'bot');
+            
         } catch (error) {
             console.error(error);
-            pdfStatus.textContent = "❌ Error al leer el PDF";
-            addMessage("❌ No pude leer el PDF. Asegúrate de que sea un PDF con texto (no escaneado).", 'bot');
+            pdfStatus.innerHTML = `❌ Error al leer el PDF: ${error.message}`;
+            addMessage(`❌ No pude leer el PDF correctamente. ${error.message}\n\nSugerencia: Asegúrate de que sea un PDF con texto (no escaneado) y que no esté dañado.`, 'bot');
+            pdfText = "";
         }
     });
     
