@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Educativo - Memoria de Trabajo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f7ff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #2c3e76;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .header p {
+            margin: 5px 0 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .pdf-preview {
+            background: #f8f9fc;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .pdf-preview h3 {
+            margin-top: 0;
+            color: #2c3e76;
+        }
+        .chat-area {
+            height: 350px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #fefefe;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            font-size: 0.9rem;
+            word-wrap: break-word;
+        }
+        .user {
+            background: #2c3e76;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+        .bot {
+            background: #e9ecef;
+            color: #1e2a3e;
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+        .input-area {
+            display: flex;
+            padding: 15px;
+            gap: 10px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 30px;
+            font-size: 1rem;
+            outline: none;
+        }
+        button {
+            background: #2c3e76;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #1f2c55;
+        }
+        .metrics {
+            background: #f1f3f5;
+            padding: 12px 20px;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #ddd;
+        }
+        .small-note {
+            text-align: center;
+            font-size: 0.7rem;
+            padding: 8px;
+            color: gray;
+        }
+        .btn-clear {
+            background: #6c757d;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🤖 Chatbot: Memoria de Trabajo</h1>
+        <p>Haz preguntas sobre el contenido | Grupo Experimental</p>
+    </div>
+
+    <!-- Simulación del PDF / lectura corta -->
+    <div class="pdf-preview">
+        <h3>📄 Lectura: Memoria de Trabajo (5 minutos de estudio)</h3>
+        <p><strong>¿Qué es la memoria de trabajo?</strong> Es un sistema cognitivo que mantiene y manipula información temporalmente durante tareas complejas como el razonamiento, la comprensión y el aprendizaje. (Baddeley, 2003)</p>
+        <p><strong>Modelo de Baddeley:</strong> Incluye el <em>ejecutivo central</em>, el <em>bucle fonológico</em> (información verbal) y la <em>agenda visoespacial</em>. Recientemente se añadió el <em>buffer episódico</em>.</p>
+        <p><strong>Capacidad:</strong> Limitada, normalmente retenemos 4±1 ítems. La carga cognitiva afecta el rendimiento académico.</p>
+        <p><strong>Relación con aprendizaje:</strong> La memoria de trabajo predice habilidades como lectura, matemáticas y autorregulación.</p>
+        <p><em>📌 Puedes preguntarme: definiciones, ejemplos, diferencias con memoria a corto plazo, consejos para mejorarla, etc.</em></p>
+    </div>
+
+    <!-- Área de chat -->
+    <div class="chat-area" id="chatArea">
+        <div class="message bot">👋 ¡Hola! Soy tu chatbot educativo. Puedes preguntarme sobre la lectura de Memoria de Trabajo. Por ejemplo: "¿Qué es el bucle fonológico?" o "¿Cómo mejorar la memoria de trabajo?"</div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="userInput" placeholder="Escribe tu pregunta aquí..." autocomplete="off">
+        <button id="sendBtn">Enviar</button>
+        <button id="clearChatBtn" class="btn-clear">Limpiar chat</button>
+    </div>
+
+    <!-- Métricas automáticas para el estudio -->
+    <div class="metrics">
+        <span>📊 Preguntas realizadas: <strong id="questionCount">0</strong></span>
+        <span>⏱️ Tiempo activo: <strong id="timerDisplay">00:00</strong></span>
+        <span>💬 Última pregunta: <span id="lastQuestion">—</span></span>
+    </div>
+    <div class="small-note">
+        ✅ Registro automático de interacciones. Cada pregunta se guarda para análisis posterior (autorregulación, metacognición).
+    </div>
+</div>
+
+<script>
+    // ------------------------------
+    // CHATBOT CON CONOCIMIENTO BÁSICO SOBRE MEMORIA DE TRABAJO
+    // ------------------------------
+    let questionCounter = 0;
+    let timerSeconds = 0;
+    let timerInterval = null;
+    let lastQuestionText = "";
+
+    // Elementos del DOM
+    const chatArea = document.getElementById('chatArea');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearChatBtn = document.getElementById('clearChatBtn');
+    const questionCountSpan = document.getElementById('questionCount');
+    const timerDisplaySpan = document.getElementById('timerDisplay');
+    const lastQuestionSpan = document.getElementById('lastQuestion');
+
+    // Iniciar temporizador (simula "durante")
+    function startTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timerSeconds++;
+            const mins = Math.floor(timerSeconds / 60);
+            const secs = timerSeconds % 60;
+            timerDisplaySpan.textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        }, 1000);
+    }
+
+    // Agregar mensaje al chat
+    function addMessage(text, sender) {
+        const msgDiv = document.createElement('div');
+        msgDiv.classList.add('message', sender === 'user' ? 'user' : 'bot');
+        msgDiv.textContent = text;
+        chatArea.appendChild(msgDiv);
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // Simular respuestas inteligentes del chatbot (basado en palabras clave)
+    function getBotResponse(question) {
+        const q = question.toLowerCase();
+        
+        // Definiciones básicas
+        if (q.includes('qué es memoria de trabajo') || q.includes('define memoria de trabajo')) {
+            return "🧠 La memoria de trabajo es un sistema cognitivo que retiene y manipula información temporalmente durante tareas como aprender, razonar o comprender. (Baddeley, 2003)";
+        }
+        if (q.includes('modelo de baddeley') || q.includes('componentes')) {
+            return "📚 El modelo multicomponente de Baddeley incluye: Ejecutivo central (control atencional), Bucle fonológico (info verbal), Agenda visoespacial (info visual/espacial) y Buffer episódico (integración).";
+        }
+        if (q.includes('bucle fonológico')) {
+            return "🔊 El bucle fonológico procesa información basada en el lenguaje. Tiene dos partes: almacén fonológico (retención breve) y repaso articulatorio (mantenimiento mediante repetición subvocal).";
+        }
+        if (q.includes('agenda visoespacial')) {
+            return "🖼️ La agenda visoespacial maneja información visual y espacial, como recordar la posición de objetos o imaginar formas. Es clave para tareas como mapas o geometría.";
+        }
+        if (q.includes('capacidad') || q.includes('cuántos ítems')) {
+            return "📊 La capacidad de la memoria de trabajo suele ser de 4±1 ítems (Cowan, 2001). Por eso es fácil olvidar números largos o listas extensas.";
+        }
+        if (q.includes('diferencia') && (q.includes('memoria a corto plazo') || q.includes('mcp'))) {
+            return "🔄 La memoria a corto plazo (MCP) solo almacena información pasivamente. La memoria de trabajo (MT) además la manipula y procesa activamente para resolver problemas.";
+        }
+        if (q.includes('mejorar') || q.includes('entrenar') || q.includes('ejercicios')) {
+            return "✅ Para mejorar la memoria de trabajo: práctica de dual n-back, reducir distracciones, usar chunking (agrupar info), atención plena y buen sueño.";
+        }
+        if (q.includes('carga cognitiva') || q.includes('sobrecarga')) {
+            return "⚠️ La carga cognitiva excesiva ocurre cuando la demanda supera la capacidad de la MT. Estrategias: dividir tareas, usar organizadores gráficos y evitar multitarea.";
+        }
+        if (q.includes('ejemplo')) {
+            return "💡 Ejemplo: Cuando haces una operación matemática mental (ej. 17 + 25), retienes los números y operas con ellos. Eso es memoria de trabajo.";
+        }
+        if (q.includes('autorregulación') || q.includes('metacognición')) {
+            return "🧠 ¡Buena pregunta! La memoria de trabajo se relaciona con la autorregulación porque ayuda a mantener metas y monitorear el progreso. Usar el chatbot para aclarar dudas ya es un acto metacognitivo.";
+        }
+        if (q.includes('gracias')) {
+            return "🙌 ¡De nada! Sigue preguntando, así refuerzas tu aprendizaje. Recuerda que el chatbot es solo un apoyo, lo importante es tu comprensión.";
+        }
+        
+        // Respuesta por defecto si no encuentra coincidencia exacta
+        return "📖 Buena pregunta. Según la lectura, la memoria de trabajo es clave en el aprendizaje. ¿Podrías reformular tu duda o especificar un concepto (ej. 'bucle fonológico', 'capacidad', 'modelo Baddeley')?";
+    }
+
+    // Procesar pregunta del usuario
+    function handleUserQuestion() {
+        let question = userInput.value.trim();
+        if (question === "") return;
+        
+        // Registrar métricas
+        questionCounter++;
+        questionCountSpan.textContent = questionCounter;
+        lastQuestionText = question.length > 35 ? question.substring(0, 32) + "..." : question;
+        lastQuestionSpan.textContent = lastQuestionText;
+        
+        // Mostrar pregunta del usuario
+        addMessage(question, 'user');
+        
+        // Obtener respuesta simulada pero educativa
+        const botReply = getBotResponse(question);
+        addMessage(botReply, 'bot');
+        
+        // Guardar en consola para registro del experimentador (evidencias)
+        console.log(`[${new Date().toLocaleTimeString()}] Pregunta #${questionCounter}: "${question}" -> Respuesta: "${botReply.substring(0, 80)}..."`);
+        
+        // Limpiar input
+        userInput.value = "";
+    }
+
+    // Limpiar solo mensajes del chat (manteniendo métricas)
+    function clearChat() {
+        chatArea.innerHTML = '';
+        addMessage("🧹 Chat limpiado. Puedes seguir preguntando sobre Memoria de Trabajo.", 'bot');
+        addMessage("💡 Recuerda: cada pregunta que haces es un acto de autorregulación. ¡Sigue aprendiendo!", 'bot');
+    }
+
+    // Eventos
+    sendBtn.addEventListener('click', handleUserQuestion);
+    userInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleUserQuestion();
+    });
+    clearChatBtn.addEventListener('click', clearChat);
+    
+    // Iniciar temporizador cuando se abre la página
+    startTimer();
+    
+    // Mensaje inicial adicional para fomentar preguntas metacognitivas
+    setTimeout(() => {
+        addMessage("📌 Pista metacognitiva: ¿Qué parte de la lectura no comprendiste del todo? Pregúntame sobre eso.", 'bot');
+    }, 2000);
+</script>
+</body>
+</html>

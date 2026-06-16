@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot con PDF Local</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        .sidebar {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            height: fit-content;
+        }
+        .chat-main {
+            background: white;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+        }
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 80%;
+        }
+        .user {
+            background: #2c3e76;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        .bot {
+            background: #e9ecef;
+            color: #1e2a3e;
+        }
+        .input-area {
+            display: flex;
+            padding: 20px;
+            gap: 10px;
+            border-top: 1px solid #ddd;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 25px;
+        }
+        button {
+            background: #2c3e76;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+        }
+        .metrics {
+            background: #f8f9fa;
+            padding: 10px 20px;
+            font-size: 0.85rem;
+            border-top: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+        }
+        .file-info {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="sidebar">
+        <h3>📄 Cargar PDF</h3>
+        <input type="file" id="pdfUpload" accept=".pdf">
+        <div class="file-info" id="pdfStatus">⚠️ Ningún PDF cargado</div>
+        <div id="extractedText" style="display:none;"></div>
+        
+        <hr>
+        <h4>📊 Métricas del estudio</h4>
+        <p>💬 Preguntas: <strong id="questionCount">0</strong></p>
+        <p>⏱️ Tiempo: <strong id="timer">00:00</strong></p>
+        
+        <button id="clearChat" style="background:#6c757d; margin-top:10px;">Limpiar chat</button>
+    </div>
+    
+    <div class="chat-main">
+        <div class="chat-area" id="chatArea">
+            <div class="message bot">🤖 Sube un PDF y luego hazme preguntas sobre su contenido. Responderé usando SOLO ese documento.</div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Pregunta sobre el PDF...">
+            <button id="sendBtn">Enviar</button>
+        </div>
+        <div class="metrics">
+            <span>📌 Última pregunta: <span id="lastQuestion">—</span></span>
+        </div>
+    </div>
+</div>
+
+<script>
+    let pdfText = "";
+    let questionCounter = 0;
+    let timerSeconds = 0;
+    let timerInterval = null;
+    
+    // Elementos
+    const chatArea = document.getElementById('chatArea');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearChatBtn = document.getElementById('clearChat');
+    const pdfUpload = document.getElementById('pdfUpload');
+    const pdfStatus = document.getElementById('pdfStatus');
+    
+    // Temporizador
+    function startTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timerSeconds++;
+            const mins = Math.floor(timerSeconds / 60);
+            const secs = timerSeconds % 60;
+            document.getElementById('timer').textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        }, 1000);
+    }
+    startTimer();
+    
+    // Agregar mensaje al chat
+    function addMessage(text, sender) {
+        const msgDiv = document.createElement('div');
+        msgDiv.classList.add('message', sender);
+        msgDiv.textContent = text;
+        chatArea.appendChild(msgDiv);
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+    
+    // Buscar respuesta en el PDF (búsqueda simple por palabras clave)
+    function buscarEnPDF(pregunta) {
+        if (!pdfText) {
+            return "⚠️ Primero carga un PDF usando el botón de la izquierda.";
+        }
+        
+        const palabras = pregunta.toLowerCase().split(/\s+/);
+        const oraciones = pdfText.split(/[.!?]+/);
+        
+        // Buscar oraciones que contengan palabras clave
+        let mejoresRespuestas = [];
+        for (let oracion of oraciones) {
+            let puntaje = 0;
+            for (let palabra of palabras) {
+                if (palabra.length > 3 && oracion.toLowerCase().includes(palabra)) {
+                    puntaje++;
+                }
+            }
+            if (puntaje > 0 && oracion.trim().length > 20) {
+                mejoresRespuestas.push({ texto: oracion.trim(), puntaje });
+            }
+        }
+        
+        // Ordenar por relevancia
+        mejoresRespuestas.sort((a,b) => b.puntaje - a.puntaje);
+        
+        if (mejoresRespuestas.length === 0) {
+            return "📖 No encontré información específica en el PDF sobre eso. ¿Podrías reformular tu pregunta o consultar otra sección del documento?";
+        }
+        
+        // Devolver los 2 fragmentos más relevantes
+        let respuesta = "📄 **Según el PDF:**\n\n";
+        for (let i = 0; i < Math.min(2, mejoresRespuestas.length); i++) {
+            respuesta += `• ${mejoresRespuestas[i].texto}.\n\n`;
+        }
+        respuesta += "\n💡 *Recuerda que el chatbot busca textualmente en el documento.*";
+        
+        return respuesta;
+    }
+    
+    // Leer PDF con pdf.js
+    async function leerPDF(file) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let textoCompleto = "";
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            textoCompleto += pageText + "\n";
+        }
+        
+        return textoCompleto;
+    }
+    
+    // Manejar carga de PDF
+    pdfUpload.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        pdfStatus.textContent = "⏳ Leyendo PDF...";
+        
+        try {
+            pdfText = await leerPDF(file);
+            pdfStatus.innerHTML = `✅ PDF cargado: ${file.name}<br>📄 ${Math.round(pdfText.length/1000)} KB extraídos`;
+            addMessage(`📚 PDF "${file.name}" cargado exitosamente. ¡Puedes preguntarme sobre su contenido!`, 'bot');
+        } catch (error) {
+            console.error(error);
+            pdfStatus.textContent = "❌ Error al leer el PDF";
+            addMessage("❌ No pude leer el PDF. Asegúrate de que sea un PDF con texto (no escaneado).", 'bot');
+        }
+    });
+    
+    // Procesar pregunta
+    function handleQuestion() {
+        const question = userInput.value.trim();
+        if (!question) return;
+        
+        // Actualizar métricas
+        questionCounter++;
+        document.getElementById('questionCount').textContent = questionCounter;
+        document.getElementById('lastQuestion').textContent = question.substring(0, 40) + (question.length > 40 ? '...' : '');
+        
+        // Mostrar pregunta
+        addMessage(question, 'user');
+        
+        // Obtener respuesta del PDF
+        const respuesta = buscarEnPDF(question);
+        addMessage(respuesta, 'bot');
+        
+        // Limpiar input
+        userInput.value = "";
+        
+        // Guardar en consola para evidencias
+        console.log(`[${new Date().toLocaleTimeString()}] Pregunta #${questionCounter}: "${question}"`);
+    }
+    
+    // Limpiar chat
+    function clearChat() {
+        chatArea.innerHTML = '';
+        addMessage("🧹 Chat limpiado. Puedes seguir preguntando sobre el PDF.", 'bot');
+    }
+    
+    // Eventos
+    sendBtn.addEventListener('click', handleQuestion);
+    userInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleQuestion();
+    });
+    clearChatBtn.addEventListener('click', clearChat);
+</script>
+</body>
+</html>
