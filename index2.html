@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot con PDF Local</title>
+    <title>Chatbot - Teorías de la Personalidad</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -42,7 +42,10 @@
             margin-bottom: 15px;
             padding: 10px 15px;
             border-radius: 18px;
-            max-width: 80%;
+            max-width: 85%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            line-height: 1.6;
         }
         .user {
             background: #2c3e76;
@@ -54,6 +57,7 @@
             background: #e9ecef;
             color: #1e2a3e;
         }
+        .bot strong { color: #2c3e76; }
         .input-area {
             display: flex;
             padding: 20px;
@@ -65,6 +69,7 @@
             padding: 12px;
             border: 1px solid #ccc;
             border-radius: 25px;
+            font-size: 1rem;
         }
         button {
             background: #2c3e76;
@@ -73,6 +78,7 @@
             padding: 12px 24px;
             border-radius: 25px;
             cursor: pointer;
+            font-size: 1rem;
         }
         .metrics {
             background: #f8f9fa;
@@ -98,14 +104,9 @@
             font-size: 0.8rem;
             display: none;
         }
-        .highlight {
-            background: #fff3cd;
-            padding: 2px 4px;
-            border-radius: 3px;
-        }
-        .tag {
+        .badge {
             display: inline-block;
-            background: #2c3e76;
+            background: #28a745;
             color: white;
             font-size: 0.7rem;
             padding: 2px 8px;
@@ -122,12 +123,12 @@
         <div class="file-info" id="pdfStatus">⚠️ Ningún PDF cargado</div>
         
         <div class="extract-box" id="extractBox">
-            <strong>📖 Texto extraído (primeros 500 caracteres):</strong>
-            <div id="extractedPreview"></div>
+            <strong>📖 Vista previa del texto extraído:</strong>
+            <div id="extractedPreview" style="margin-top:5px; color:#555;"></div>
         </div>
         
         <hr>
-        <h4>📊 Métricas del estudio</h4>
+        <h4>📊 Métricas</h4>
         <p>💬 Preguntas: <strong id="questionCount">0</strong></p>
         <p>⏱️ Tiempo: <strong id="timer">00:00</strong></p>
         
@@ -136,10 +137,10 @@
     
     <div class="chat-main">
         <div class="chat-area" id="chatArea">
-            <div class="message bot">🤖 Sube un PDF y luego hazme preguntas sobre su contenido. Responderé usando SOLO ese documento.</div>
+            <div class="message bot">🤖 Sube el PDF de <strong>Teorías de la personalidad - Jess Feist</strong> y hazme preguntas. ¡Responderé con citas exactas del libro!</div>
         </div>
         <div class="input-area">
-            <input type="text" id="userInput" placeholder="Pregunta sobre el PDF...">
+            <input type="text" id="userInput" placeholder="Ej: ¿Qué es la personalidad?">
             <button id="sendBtn">Enviar</button>
         </div>
         <div class="metrics">
@@ -156,6 +157,7 @@
     let questionCounter = 0;
     let timerSeconds = 0;
     let timerInterval = null;
+    let frasesClave = {};
     
     // Elementos
     const chatArea = document.getElementById('chatArea');
@@ -180,7 +182,6 @@
     }
     startTimer();
     
-    // Agregar mensaje al chat
     function addMessage(text, sender) {
         const msgDiv = document.createElement('div');
         msgDiv.classList.add('message', sender);
@@ -189,81 +190,156 @@
         chatArea.scrollTop = chatArea.scrollHeight;
     }
     
-    // Función mejorada para buscar en el PDF
+    // ============ MOTOR DE BÚSQUEDA AVANZADO ============
     function buscarEnPDF(pregunta) {
-        if (!pdfText || pdfText.length < 10) {
-            return "⚠️ Primero carga un PDF con texto válido. Asegúrate de que el PDF no sea solo imágenes escaneadas.";
+        if (!pdfText || pdfText.length < 50) {
+            return "⚠️ Primero carga el PDF. Asegúrate de que sea el libro de Feist y que tenga texto extraíble.";
         }
         
-        // Mostrar estadísticas del texto para depuración
-        console.log(`📊 Texto extraído: ${pdfText.length} caracteres, ${pdfText.split(/\s+/).length} palabras`);
+        const p = pregunta.toLowerCase().trim();
         
-        // Limpiar y preparar la pregunta
-        const palabrasClave = pregunta.toLowerCase()
-            .replace(/[¿?¡!.,;:()]/g, '')
-            .split(/\s+/)
-            .filter(p => p.length > 3);
+        // === DICCIONARIO DE TEMAS Y SUS DEFINICIONES ===
+        const temas = {
+            'personalidad': {
+                palabras: ['personalidad', 'persona', 'máscara', 'rasgos', 'características'],
+                respuesta: function(texto) {
+                    // Buscar la definición exacta en el texto
+                    const regex = /personalidad\s+es\s+un\s+patrón\s+de\s+rasgos[^.!?]*[.!?]/i;
+                    const match = texto.match(regex);
+                    if (match) return match[0];
+                    
+                    // Buscar fragmento que hable de la definición
+                    const partes = texto.split(/[.!?]+/);
+                    for (let parte of partes) {
+                        if (parte.toLowerCase().includes('personalidad') && 
+                            (parte.toLowerCase().includes('patrón') || 
+                             parte.toLowerCase().includes('rasgos') ||
+                             parte.toLowerCase().includes('coherencia') ||
+                             parte.toLowerCase().includes('individualidad'))) {
+                            return parte.trim() + '.';
+                        }
+                    }
+                    return null;
+                }
+            },
+            'teoría': {
+                palabras: ['teoría', 'científica', 'supuestos', 'hipótesis', 'deductivo'],
+                respuesta: function(texto) {
+                    const partes = texto.split(/[.!?]+/);
+                    for (let parte of partes) {
+                        if (parte.toLowerCase().includes('teoría') && 
+                            (parte.toLowerCase().includes('científica') || 
+                             parte.toLowerCase().includes('supuestos') ||
+                             parte.toLowerCase().includes('hipótesis'))) {
+                            return parte.trim() + '.';
+                        }
+                    }
+                    return null;
+                }
+            },
+            'freud': {
+                palabras: ['freud', 'sigmund', 'psicoanálisis', 'inconsciente', 'neurólogo'],
+                respuesta: function(texto) {
+                    const partes = texto.split(/[.!?]+/);
+                    for (let parte of partes) {
+                        if (parte.toLowerCase().includes('freud') || 
+                            parte.toLowerCase().includes('sigmund')) {
+                            return parte.trim() + '.';
+                        }
+                    }
+                    return null;
+                }
+            },
+            'criterios': {
+                palabras: ['criterios', 'útil', 'genera', 'refutable', 'organiza', 'guía', 'coherencia', 'sencilla'],
+                respuesta: function(texto) {
+                    const partes = texto.split(/[.!?]+/);
+                    let respuestas = [];
+                    for (let parte of partes) {
+                        if (parte.toLowerCase().includes('criterio') || 
+                            parte.toLowerCase().includes('genera investigación') ||
+                            parte.toLowerCase().includes('refutable')) {
+                            respuestas.push(parte.trim());
+                        }
+                    }
+                    return respuestas.length > 0 ? respuestas.slice(0, 3).join('. ') + '.' : null;
+                }
+            },
+            'determinismo': {
+                palabras: ['determinismo', 'libertad', 'elección', 'control', 'fuerzas'],
+                respuesta: function(texto) {
+                    const partes = texto.split(/[.!?]+/);
+                    for (let parte of partes) {
+                        if (parte.toLowerCase().includes('determinismo') || 
+                            parte.toLowerCase().includes('libertad de elección')) {
+                            return parte.trim() + '.';
+                        }
+                    }
+                    return null;
+                }
+            }
+        };
         
-        if (palabrasClave.length === 0) {
-            return "📖 Por favor, formula una pregunta más específica con palabras clave.";
+        // Detectar qué tema está preguntando
+        let temaDetectado = null;
+        let maxCoincidencias = 0;
+        
+        for (let [tema, data] of Object.entries(temas)) {
+            let coincidencias = 0;
+            for (let palabra of data.palabras) {
+                if (p.includes(palabra)) coincidencias++;
+            }
+            if (coincidencias > maxCoincidencias && coincidencias > 0) {
+                maxCoincidencias = coincidencias;
+                temaDetectado = tema;
+            }
         }
         
-        // Dividir el PDF en secciones (párrafos)
-        const secciones = pdfText.split(/\n\s*\n/);
-        let mejoresRespuestas = [];
+        // Si detectó un tema, buscar su definición
+        if (temaDetectado) {
+            const tema = temas[temaDetectado];
+            const respuesta = tema.respuesta(pdfText);
+            if (respuesta) {
+                return `📖 **Según el libro de Feist (Capítulo 1):**\n\n${respuesta}\n\n💡 *Esta es una cita textual extraída del PDF.*`;
+            }
+        }
         
-        for (let seccion of secciones) {
-            seccion = seccion.trim();
-            if (seccion.length < 20) continue;
+        // === BÚSQUEDA POR PALABRAS CLAVE (FALLBACK) ===
+        const palabrasClave = p.split(/\s+/).filter(palabra => palabra.length > 3);
+        
+        // Dividir en oraciones
+        const oraciones = pdfText.split(/[.!?]+/);
+        let mejores = [];
+        
+        for (let oracion of oraciones) {
+            oracion = oracion.trim();
+            if (oracion.length < 20) continue;
             
             let puntaje = 0;
             for (let palabra of palabrasClave) {
-                // Búsqueda exacta y con variantes
-                if (seccion.toLowerCase().includes(palabra)) {
+                if (oracion.toLowerCase().includes(palabra)) {
                     puntaje += 2;
                 }
-                // Búsqueda de palabras relacionadas (sin acentos)
-                const palabraSinAcento = palabra.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                if (seccion.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(palabraSinAcento)) {
-                    puntaje += 1;
-                }
             }
-            
-            // Bonus si la sección contiene varias palabras clave
             if (puntaje > 0) {
-                // Limpiar el texto de caracteres extraños
-                let textoLimpio = seccion.replace(/[-ÿ]/g, ' ').replace(/\s+/g, ' ');
-                mejoresRespuestas.push({ 
-                    texto: textoLimpio, 
-                    puntaje: puntaje,
-                    palabrasEncontradas: palabrasClave.filter(p => seccion.toLowerCase().includes(p)).length
-                });
+                mejores.push({ texto: oracion, puntaje: puntaje });
             }
         }
         
-        // Ordenar por relevancia
-        mejoresRespuestas.sort((a, b) => b.puntaje - a.puntaje);
+        mejores.sort((a, b) => b.puntaje - a.puntaje);
         
-        if (mejoresRespuestas.length === 0) {
-            return "📖 No encontré información específica en el PDF sobre eso. El texto del PDF parece ser:\n\n" + 
-                   pdfText.substring(0, 300) + "...\n\n💡 Intenta preguntar sobre conceptos como: personalidad, teoría, Freud, psicología, etc.";
+        if (mejores.length === 0) {
+            return "📖 No encontré información específica sobre eso en el PDF.\n\n💡 Prueba preguntar sobre: **personalidad**, **teoría**, **Freud**, **criterios** o **determinismo**.";
         }
         
         // Construir respuesta con los fragmentos más relevantes
-        let respuesta = "📄 **Según el PDF:**\n\n";
-        const maxFragmentos = Math.min(3, mejoresRespuestas.length);
-        
-        for (let i = 0; i < maxFragmentos; i++) {
-            const frag = mejoresRespuestas[i];
-            // Truncar si es muy largo
-            let texto = frag.texto;
-            if (texto.length > 400) {
-                texto = texto.substring(0, 400) + "...";
-            }
-            respuesta += `📌 *Fragmento ${i+1}:*\n${texto}\n\n`;
+        let respuesta = "📄 **Fragmentos encontrados en el PDF:**\n\n";
+        for (let i = 0; i < Math.min(2, mejores.length); i++) {
+            let texto = mejores[i].texto;
+            if (texto.length > 500) texto = texto.substring(0, 500) + '...';
+            respuesta += `📌 ${texto}.\n\n`;
         }
-        
-        respuesta += "\n💡 *Nota: El chatbot extrae fragmentos textuales del PDF. La precisión depende de la calidad del texto extraído.*";
+        respuesta += "💡 *Recuerda: el chatbot busca textualmente en el documento.*";
         
         return respuesta;
     }
@@ -279,12 +355,10 @@
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
             
-            // Extraer texto con metadatos de posición para preservar estructura
             let pageText = "";
             let lastY = null;
             let currentLine = "";
             
-            // Ordenar items por posición Y (vertical) para mantener el orden de lectura
             const items = textContent.items.sort((a, b) => a.transform[5] - b.transform[5]);
             
             for (let item of items) {
@@ -292,8 +366,7 @@
                 if (!str) continue;
                 
                 const y = item.transform[5];
-                if (lastY !== null && Math.abs(y - lastY) > 5) {
-                    // Cambio de línea
+                if (lastY !== null && Math.abs(y - lastY) > 8) {
                     if (currentLine) {
                         pageText += currentLine + "\n";
                         currentLine = "";
@@ -308,13 +381,8 @@
             
             // Limpiar caracteres extraños
             pageText = pageText.replace(/[-ÿ]/g, ' ').replace(/\s+/g, ' ');
-            
-            // Agregar separador de página
-            textoCompleto += `=== PÁGINA ${i} ===\n${pageText}\n\n`;
+            textoCompleto += pageText + "\n";
         }
-        
-        // Limpieza final
-        textoCompleto = textoCompleto.replace(/[^\w\s\.,;:!?¡¿()\-áéíóúñÑÁÉÍÓÚ]/g, ' ').replace(/\s+/g, ' ');
         
         return textoCompleto;
     }
@@ -325,32 +393,28 @@
         if (!file) return;
         
         pdfName = file.name;
-        pdfStatus.innerHTML = "⏳ Leyendo PDF... Esto puede tomar unos segundos...";
+        pdfStatus.innerHTML = "⏳ Leyendo PDF...";
         
         try {
             pdfText = await leerPDF(file);
             
             if (pdfText.length < 100) {
-                throw new Error("El PDF parece estar escaneado o no contiene texto extraíble.");
+                throw new Error("El PDF parece estar escaneado. Solo funcionan PDFs con texto.");
             }
             
-            // Mostrar vista previa del texto extraído
+            // Mostrar vista previa
             extractBox.style.display = 'block';
-            const preview = pdfText.substring(0, 500) + (pdfText.length > 500 ? '...' : '');
-            extractedPreview.textContent = preview;
+            extractedPreview.textContent = pdfText.substring(0, 400) + (pdfText.length > 400 ? '...' : '');
             
             pageInfo.textContent = `📄 Páginas: ${pdfPages}`;
+            pdfStatus.innerHTML = `✅ <strong>${file.name}</strong><br>📄 ${pdfPages} páginas, ${Math.round(pdfText.length/1000)} KB`;
             
-            // Mostrar estadísticas del texto
-            const palabras = pdfText.split(/\s+/).length;
-            pdfStatus.innerHTML = `✅ <strong>PDF cargado:</strong> ${file.name}<br>📄 ${pdfPages} páginas, ${Math.round(pdfText.length/1000)} KB, ${palabras} palabras`;
-            
-            addMessage(`📚 PDF "${file.name}" cargado exitosamente.\n📄 ${pdfPages} páginas extraídas.\n💬 ¡Puedes preguntarme sobre su contenido!`, 'bot');
+            addMessage(`📚 PDF cargado correctamente: "${file.name}"\n📄 ${pdfPages} páginas extraídas.\n\n💬 ¡Pregúntame sobre **personalidad**, **teoría**, **Freud** o cualquier concepto del libro!`, 'bot');
             
         } catch (error) {
             console.error(error);
-            pdfStatus.innerHTML = `❌ Error al leer el PDF: ${error.message}`;
-            addMessage(`❌ No pude leer el PDF correctamente. ${error.message}\n\nSugerencia: Asegúrate de que sea un PDF con texto (no escaneado) y que no esté dañado.`, 'bot');
+            pdfStatus.innerHTML = `❌ Error: ${error.message}`;
+            addMessage(`❌ Error al leer el PDF: ${error.message}`, 'bot');
             pdfText = "";
         }
     });
@@ -360,32 +424,23 @@
         const question = userInput.value.trim();
         if (!question) return;
         
-        // Actualizar métricas
         questionCounter++;
         document.getElementById('questionCount').textContent = questionCounter;
         document.getElementById('lastQuestion').textContent = question.substring(0, 40) + (question.length > 40 ? '...' : '');
         
-        // Mostrar pregunta
         addMessage(question, 'user');
         
-        // Obtener respuesta del PDF
         const respuesta = buscarEnPDF(question);
         addMessage(respuesta, 'bot');
         
-        // Limpiar input
         userInput.value = "";
-        
-        // Guardar en consola para evidencias
-        console.log(`[${new Date().toLocaleTimeString()}] Pregunta #${questionCounter}: "${question}"`);
     }
     
-    // Limpiar chat
     function clearChat() {
         chatArea.innerHTML = '';
-        addMessage("🧹 Chat limpiado. Puedes seguir preguntando sobre el PDF.", 'bot');
+        addMessage("🧹 Chat limpiado. ¡Sigue preguntando sobre el libro!", 'bot');
     }
     
-    // Eventos
     sendBtn.addEventListener('click', handleQuestion);
     userInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleQuestion();
