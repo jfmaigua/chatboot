@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot - Teorías de la Personalidad</title>
+    <title>Chatbot - Buscador de PDF</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Segoe UI', sans-serif;
             background: #f0f2f5;
@@ -57,7 +59,9 @@
             background: #e9ecef;
             color: #1e2a3e;
         }
-        .bot strong { color: #2c3e76; }
+        .bot strong {
+            color: #2c3e76;
+        }
         .input-area {
             display: flex;
             padding: 20px;
@@ -116,336 +120,233 @@
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="sidebar">
-        <h3>📄 Cargar PDF</h3>
-        <input type="file" id="pdfUpload" accept=".pdf">
-        <div class="file-info" id="pdfStatus">⚠️ Ningún PDF cargado</div>
-        
-        <div class="extract-box" id="extractBox">
-            <strong>📖 Vista previa del texto extraído:</strong>
-            <div id="extractedPreview" style="margin-top:5px; color:#555;"></div>
-        </div>
-        
-        <hr>
-        <h4>📊 Métricas</h4>
-        <p>💬 Preguntas: <strong id="questionCount">0</strong></p>
-        <p>⏱️ Tiempo: <strong id="timer">00:00</strong></p>
-        
-        <button id="clearChat" style="background:#6c757d; margin-top:10px;">Limpiar chat</button>
-    </div>
-    
-    <div class="chat-main">
-        <div class="chat-area" id="chatArea">
-            <div class="message bot">🤖 Sube el PDF de <strong>Teorías de la personalidad - Jess Feist</strong> y hazme preguntas. ¡Responderé con citas exactas del libro!</div>
-        </div>
-        <div class="input-area">
-            <input type="text" id="userInput" placeholder="Ej: ¿Qué es la personalidad?">
-            <button id="sendBtn">Enviar</button>
-        </div>
-        <div class="metrics">
-            <span>📌 Última pregunta: <span id="lastQuestion">—</span></span>
-            <span id="pageInfo">📄 Páginas: 0</span>
-        </div>
-    </div>
-</div>
+    <div class="container">
+        <div class="sidebar">
+            <h3>📄 Cargar PDF</h3>
+            <input type="file" id="pdfUpload" accept=".pdf">
+            <div class="file-info" id="pdfStatus">⚠️ Ningún PDF cargado</div>
 
-<script>
-    let pdfText = "";
-    let pdfPages = 0;
-    let pdfName = "";
-    let questionCounter = 0;
-    let timerSeconds = 0;
-    let timerInterval = null;
-    let frasesClave = {};
-    
-    // Elementos
-    const chatArea = document.getElementById('chatArea');
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const clearChatBtn = document.getElementById('clearChat');
-    const pdfUpload = document.getElementById('pdfUpload');
-    const pdfStatus = document.getElementById('pdfStatus');
-    const extractBox = document.getElementById('extractBox');
-    const extractedPreview = document.getElementById('extractedPreview');
-    const pageInfo = document.getElementById('pageInfo');
-    
-    // Temporizador
-    function startTimer() {
-        if (timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
-            timerSeconds++;
-            const mins = Math.floor(timerSeconds / 60);
-            const secs = timerSeconds % 60;
-            document.getElementById('timer').textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
-        }, 1000);
-    }
-    startTimer();
-    
-    function addMessage(text, sender) {
-        const msgDiv = document.createElement('div');
-        msgDiv.classList.add('message', sender);
-        msgDiv.textContent = text;
-        chatArea.appendChild(msgDiv);
-        chatArea.scrollTop = chatArea.scrollHeight;
-    }
-    
-    // ============ MOTOR DE BÚSQUEDA AVANZADO ============
-    function buscarEnPDF(pregunta) {
-        if (!pdfText || pdfText.length < 50) {
-            return "⚠️ Primero carga el PDF. Asegúrate de que sea el libro de Feist y que tenga texto extraíble.";
+            <div class="extract-box" id="extractBox">
+                <strong>📖 Vista previa del texto extraído:</strong>
+                <div id="extractedPreview" style="margin-top:5px; color:#555;"></div>
+            </div>
+
+            <hr>
+            <h4>📊 Métricas</h4>
+            <p>💬 Preguntas: <strong id="questionCount">0</strong></p>
+            <p>⏱️ Tiempo: <strong id="timer">00:00</strong></p>
+
+            <button id="clearChat" style="background:#6c757d; margin-top:10px;">Limpiar chat</button>
+        </div>
+
+        <div class="chat-main">
+            <div class="chat-area" id="chatArea">
+                <div class="message bot">🤖 Sube un PDF y hazme preguntas. ¡Responderé con citas textuales del documento!</div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="userInput" placeholder="Ej: ¿Qué dice sobre la adultez emergente?">
+                <button id="sendBtn">Enviar</button>
+            </div>
+            <div class="metrics">
+                <span>📌 Última pregunta: <span id="lastQuestion">—</span></span>
+                <span id="pageInfo">📄 Páginas: 0</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================== ELEMENTOS ==================
+        const chatArea = document.getElementById('chatArea');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const clearChatBtn = document.getElementById('clearChat');
+        const pdfUpload = document.getElementById('pdfUpload');
+        const pdfStatus = document.getElementById('pdfStatus');
+        const extractBox = document.getElementById('extractBox');
+        const extractedPreview = document.getElementById('extractedPreview');
+        const pageInfo = document.getElementById('pageInfo');
+
+        let pdfText = "";
+        let pdfPages = 0;
+        let pdfName = "";
+        let questionCounter = 0;
+        let timerSeconds = 0;
+        let timerInterval = null;
+
+        // ================== TEMPORIZADOR ==================
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timerSeconds++;
+                const mins = Math.floor(timerSeconds / 60);
+                const secs = timerSeconds % 60;
+                document.getElementById('timer').textContent =
+                    `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+            }, 1000);
         }
-        
-        const p = pregunta.toLowerCase().trim();
-        
-        // === DICCIONARIO DE TEMAS Y SUS DEFINICIONES ===
-        const temas = {
-            'personalidad': {
-                palabras: ['personalidad', 'persona', 'máscara', 'rasgos', 'características'],
-                respuesta: function(texto) {
-                    // Buscar la definición exacta en el texto
-                    const regex = /personalidad\s+es\s+un\s+patrón\s+de\s+rasgos[^.!?]*[.!?]/i;
-                    const match = texto.match(regex);
-                    if (match) return match[0];
-                    
-                    // Buscar fragmento que hable de la definición
-                    const partes = texto.split(/[.!?]+/);
-                    for (let parte of partes) {
-                        if (parte.toLowerCase().includes('personalidad') && 
-                            (parte.toLowerCase().includes('patrón') || 
-                             parte.toLowerCase().includes('rasgos') ||
-                             parte.toLowerCase().includes('coherencia') ||
-                             parte.toLowerCase().includes('individualidad'))) {
-                            return parte.trim() + '.';
-                        }
-                    }
-                    return null;
-                }
-            },
-            'teoría': {
-                palabras: ['teoría', 'científica', 'supuestos', 'hipótesis', 'deductivo'],
-                respuesta: function(texto) {
-                    const partes = texto.split(/[.!?]+/);
-                    for (let parte of partes) {
-                        if (parte.toLowerCase().includes('teoría') && 
-                            (parte.toLowerCase().includes('científica') || 
-                             parte.toLowerCase().includes('supuestos') ||
-                             parte.toLowerCase().includes('hipótesis'))) {
-                            return parte.trim() + '.';
-                        }
-                    }
-                    return null;
-                }
-            },
-            'freud': {
-                palabras: ['freud', 'sigmund', 'psicoanálisis', 'inconsciente', 'neurólogo'],
-                respuesta: function(texto) {
-                    const partes = texto.split(/[.!?]+/);
-                    for (let parte of partes) {
-                        if (parte.toLowerCase().includes('freud') || 
-                            parte.toLowerCase().includes('sigmund')) {
-                            return parte.trim() + '.';
-                        }
-                    }
-                    return null;
-                }
-            },
-            'criterios': {
-                palabras: ['criterios', 'útil', 'genera', 'refutable', 'organiza', 'guía', 'coherencia', 'sencilla'],
-                respuesta: function(texto) {
-                    const partes = texto.split(/[.!?]+/);
-                    let respuestas = [];
-                    for (let parte of partes) {
-                        if (parte.toLowerCase().includes('criterio') || 
-                            parte.toLowerCase().includes('genera investigación') ||
-                            parte.toLowerCase().includes('refutable')) {
-                            respuestas.push(parte.trim());
-                        }
-                    }
-                    return respuestas.length > 0 ? respuestas.slice(0, 3).join('. ') + '.' : null;
-                }
-            },
-            'determinismo': {
-                palabras: ['determinismo', 'libertad', 'elección', 'control', 'fuerzas'],
-                respuesta: function(texto) {
-                    const partes = texto.split(/[.!?]+/);
-                    for (let parte of partes) {
-                        if (parte.toLowerCase().includes('determinismo') || 
-                            parte.toLowerCase().includes('libertad de elección')) {
-                            return parte.trim() + '.';
-                        }
-                    }
-                    return null;
-                }
-            }
-        };
-        
-        // Detectar qué tema está preguntando
-        let temaDetectado = null;
-        let maxCoincidencias = 0;
-        
-        for (let [tema, data] of Object.entries(temas)) {
-            let coincidencias = 0;
-            for (let palabra of data.palabras) {
-                if (p.includes(palabra)) coincidencias++;
-            }
-            if (coincidencias > maxCoincidencias && coincidencias > 0) {
-                maxCoincidencias = coincidencias;
-                temaDetectado = tema;
-            }
+        startTimer();
+
+        // ================== UTILIDADES ==================
+        function addMessage(text, sender) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', sender);
+            msgDiv.textContent = text;
+            chatArea.appendChild(msgDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
         }
-        
-        // Si detectó un tema, buscar su definición
-        if (temaDetectado) {
-            const tema = temas[temaDetectado];
-            const respuesta = tema.respuesta(pdfText);
-            if (respuesta) {
-                return `📖 **Según el libro de Feist (Capítulo 1):**\n\n${respuesta}\n\n💡 *Esta es una cita textual extraída del PDF.*`;
+
+        // Normalizar texto (quitar acentos) para comparaciones
+        function normalize(str) {
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        }
+
+        // ================== LECTURA DEL PDF ==================
+        async function leerPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let textoCompleto = "";
+            pdfPages = pdf.numPages;
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                // Extraer texto plano manteniendo el orden
+                let pageText = textContent.items.map(item => item.str).join(' ');
+                // Limpiar solo saltos de línea excesivos y espacios múltiples
+                pageText = pageText.replace(/\s+/g, ' ').trim();
+                textoCompleto += pageText + "\n";
             }
+
+            return textoCompleto;
         }
-        
-        // === BÚSQUEDA POR PALABRAS CLAVE (FALLBACK) ===
-        const palabrasClave = p.split(/\s+/).filter(palabra => palabra.length > 3);
-        
-        // Dividir en oraciones
-        const oraciones = pdfText.split(/[.!?]+/);
-        let mejores = [];
-        
-        for (let oracion of oraciones) {
-            oracion = oracion.trim();
-            if (oracion.length < 20) continue;
-            
-            let puntaje = 0;
-            for (let palabra of palabrasClave) {
-                if (oracion.toLowerCase().includes(palabra)) {
-                    puntaje += 2;
-                }
+
+        // ================== MOTOR DE BÚSQUEDA ==================
+        function buscarEnPDF(pregunta) {
+            if (!pdfText || pdfText.length < 50) {
+                return "⚠️ Primero carga un PDF válido con texto extraíble.";
             }
-            if (puntaje > 0) {
-                mejores.push({ texto: oracion, puntaje: puntaje });
+
+            // Extraer palabras clave de la pregunta (descartar palabras muy comunes)
+            const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'en', 'para', 'por', 'con',
+                'sin', 'sobre', 'entre', 'hasta', 'desde', 'según', 'durante', 'mediante', 'qué', 'cómo', 'cuál', 'cuáles',
+                'quién', 'quienes', 'dónde', 'cuándo', 'por qué', 'para qué'
+            ];
+            const palabras = pregunta.toLowerCase().split(/\s+/)
+                .map(p => p.replace(/[.,;:!?¿¡()"']/g, ''))
+                .filter(p => p.length > 2 && !stopWords.includes(p));
+
+            if (palabras.length === 0) {
+                return "📖 No pude identificar palabras clave en tu pregunta. Intenta reformularla.";
             }
-        }
-        
-        mejores.sort((a, b) => b.puntaje - a.puntaje);
-        
-        if (mejores.length === 0) {
-            return "📖 No encontré información específica sobre eso en el PDF.\n\n💡 Prueba preguntar sobre: **personalidad**, **teoría**, **Freud**, **criterios** o **determinismo**.";
-        }
-        
-        // Construir respuesta con los fragmentos más relevantes
-        let respuesta = "📄 **Fragmentos encontrados en el PDF:**\n\n";
-        for (let i = 0; i < Math.min(2, mejores.length); i++) {
-            let texto = mejores[i].texto;
-            if (texto.length > 500) texto = texto.substring(0, 500) + '...';
-            respuesta += `📌 ${texto}.\n\n`;
-        }
-        respuesta += "💡 *Recuerda: el chatbot busca textualmente en el documento.*";
-        
-        return respuesta;
-    }
-    
-    // Leer PDF con pdf.js mejorado
-    async function leerPDF(file) {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let textoCompleto = "";
-        pdfPages = pdf.numPages;
-        
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            
-            let pageText = "";
-            let lastY = null;
-            let currentLine = "";
-            
-            const items = textContent.items.sort((a, b) => a.transform[5] - b.transform[5]);
-            
-            for (let item of items) {
-                const str = item.str.trim();
-                if (!str) continue;
-                
-                const y = item.transform[5];
-                if (lastY !== null && Math.abs(y - lastY) > 8) {
-                    if (currentLine) {
-                        pageText += currentLine + "\n";
-                        currentLine = "";
+
+            // Dividir el PDF en oraciones (por puntos y signos de interrogación/exclamación)
+            const oraciones = pdfText.split(/[.!?;]+/).map(o => o.trim()).filter(o => o.length > 20);
+
+            // Calcular puntaje para cada oración
+            const puntajes = oraciones.map(oracion => {
+                const lowerOracion = oracion.toLowerCase();
+                // Normalizar la oración para comparar sin acentos (opcional)
+                const normOracion = normalize(lowerOracion);
+                const normPalabras = palabras.map(p => normalize(p));
+
+                let puntaje = 0;
+                for (let pal of normPalabras) {
+                    if (normOracion.includes(pal)) {
+                        puntaje += 2; // coincidencia exacta
                     }
                 }
-                currentLine += str + " ";
-                lastY = y;
+                // Bonus si aparecen varias palabras juntas
+                const count = normPalabras.filter(p => normOracion.includes(p)).length;
+                if (count > 1) puntaje += count;
+
+                return { texto: oracion, puntaje };
+            });
+
+            // Ordenar por puntaje descendente
+            puntajes.sort((a, b) => b.puntaje - a.puntaje);
+            const mejores = puntajes.filter(p => p.puntaje > 0);
+
+            if (mejores.length === 0) {
+                return "📖 No encontré información relevante en el PDF para tu pregunta.\n\n💡 Intenta usar palabras clave más concretas.";
             }
-            if (currentLine) {
-                pageText += currentLine + "\n";
+
+            // Construir respuesta con los fragmentos más relevantes (máximo 3)
+            let respuesta = "📄 **Fragmentos encontrados en el PDF:**\n\n";
+            const maxFragmentos = Math.min(3, mejores.length);
+            for (let i = 0; i < maxFragmentos; i++) {
+                let texto = mejores[i].texto;
+                // Acortar si es muy largo
+                if (texto.length > 600) texto = texto.substring(0, 600) + '...';
+                respuesta += `📌 ${texto}.\n\n`;
             }
-            
-            // Limpiar caracteres extraños
-            pageText = pageText.replace(/[-ÿ]/g, ' ').replace(/\s+/g, ' ');
-            textoCompleto += pageText + "\n";
+            respuesta += "💡 *Estas son citas textuales extraídas del documento.*";
+
+            return respuesta;
         }
-        
-        return textoCompleto;
-    }
-    
-    // Manejar carga de PDF
-    pdfUpload.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        pdfName = file.name;
-        pdfStatus.innerHTML = "⏳ Leyendo PDF...";
-        
-        try {
-            pdfText = await leerPDF(file);
-            
-            if (pdfText.length < 100) {
-                throw new Error("El PDF parece estar escaneado. Solo funcionan PDFs con texto.");
+
+        // ================== MANEJO DE CARGA DE PDF ==================
+        pdfUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            pdfName = file.name;
+            pdfStatus.innerHTML = "⏳ Leyendo PDF...";
+
+            try {
+                pdfText = await leerPDF(file);
+
+                if (pdfText.length < 100) {
+                    throw new Error("El PDF parece estar escaneado o no tiene texto extraíble.");
+                }
+
+                // Mostrar vista previa
+                extractBox.style.display = 'block';
+                const preview = pdfText.substring(0, 400) + (pdfText.length > 400 ? '...' : '');
+                extractedPreview.textContent = preview;
+
+                pageInfo.textContent = `📄 Páginas: ${pdfPages}`;
+                pdfStatus.innerHTML = `✅ <strong>${file.name}</strong><br>📄 ${pdfPages} páginas, ${Math.round(pdfText.length/1000)} KB`;
+
+                addMessage(`📚 PDF cargado correctamente: "${file.name}"\n📄 ${pdfPages} páginas extraídas.\n\n💬 ¡Pregúntame sobre cualquier tema que aparece en el documento!`, 'bot');
+
+            } catch (error) {
+                console.error(error);
+                pdfStatus.innerHTML = `❌ Error: ${error.message}`;
+                addMessage(`❌ Error al leer el PDF: ${error.message}`, 'bot');
+                pdfText = "";
             }
-            
-            // Mostrar vista previa
-            extractBox.style.display = 'block';
-            extractedPreview.textContent = pdfText.substring(0, 400) + (pdfText.length > 400 ? '...' : '');
-            
-            pageInfo.textContent = `📄 Páginas: ${pdfPages}`;
-            pdfStatus.innerHTML = `✅ <strong>${file.name}</strong><br>📄 ${pdfPages} páginas, ${Math.round(pdfText.length/1000)} KB`;
-            
-            addMessage(`📚 PDF cargado correctamente: "${file.name}"\n📄 ${pdfPages} páginas extraídas.\n\n💬 ¡Pregúntame sobre **personalidad**, **teoría**, **Freud** o cualquier concepto del libro!`, 'bot');
-            
-        } catch (error) {
-            console.error(error);
-            pdfStatus.innerHTML = `❌ Error: ${error.message}`;
-            addMessage(`❌ Error al leer el PDF: ${error.message}`, 'bot');
-            pdfText = "";
+        });
+
+        // ================== PROCESAR PREGUNTA ==================
+        function handleQuestion() {
+            const question = userInput.value.trim();
+            if (!question) return;
+
+            // Actualizar métricas
+            questionCounter++;
+            document.getElementById('questionCount').textContent = questionCounter;
+            const shortQ = question.length > 40 ? question.substring(0, 40) + '...' : question;
+            document.getElementById('lastQuestion').textContent = shortQ;
+
+            addMessage(question, 'user');
+
+            const respuesta = buscarEnPDF(question);
+            addMessage(respuesta, 'bot');
+
+            userInput.value = "";
         }
-    });
-    
-    // Procesar pregunta
-    function handleQuestion() {
-        const question = userInput.value.trim();
-        if (!question) return;
-        
-        questionCounter++;
-        document.getElementById('questionCount').textContent = questionCounter;
-        document.getElementById('lastQuestion').textContent = question.substring(0, 40) + (question.length > 40 ? '...' : '');
-        
-        addMessage(question, 'user');
-        
-        const respuesta = buscarEnPDF(question);
-        addMessage(respuesta, 'bot');
-        
-        userInput.value = "";
-    }
-    
-    function clearChat() {
-        chatArea.innerHTML = '';
-        addMessage("🧹 Chat limpiado. ¡Sigue preguntando sobre el libro!", 'bot');
-    }
-    
-    sendBtn.addEventListener('click', handleQuestion);
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleQuestion();
-    });
-    clearChatBtn.addEventListener('click', clearChat);
-</script>
+
+        function clearChat() {
+            chatArea.innerHTML = '';
+            addMessage("🧹 Chat limpiado. ¡Sigue preguntando sobre el PDF!", 'bot');
+        }
+
+        // ================== EVENTOS ==================
+        sendBtn.addEventListener('click', handleQuestion);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleQuestion();
+        });
+        clearChatBtn.addEventListener('click', clearChat);
+    </script>
 </body>
 </html>
