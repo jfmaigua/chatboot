@@ -108,15 +108,6 @@
             font-size: 0.8rem;
             display: none;
         }
-        .badge {
-            display: inline-block;
-            background: #28a745;
-            color: white;
-            font-size: 0.7rem;
-            padding: 2px 8px;
-            border-radius: 12px;
-            margin-right: 5px;
-        }
     </style>
 </head>
 <body>
@@ -167,6 +158,7 @@
         const pageInfo = document.getElementById('pageInfo');
 
         let pdfText = "";
+        let pdfTextLimpio = "";   // texto normalizado para mostrar y buscar
         let pdfPages = 0;
         let pdfName = "";
         let questionCounter = 0;
@@ -195,9 +187,33 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        // Normalizar texto (quitar acentos) para comparaciones
-        function normalize(str) {
+        // Normalizar texto para comparaciones (quita acentos)
+        function normalizeForCompare(str) {
             return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        }
+
+        // ================== LIMPIEZA AVANZADA DE TEXTO ==================
+        function limpiarTexto(texto) {
+            // 1. Normalizar a NFC para combinar caracteres base + acentos
+            let limpio = texto.normalize('NFC');
+
+            // 2. Reemplazar secuencias de caracteres rotos comunes (ej: "i ´" → "í")
+            //    Patrón: letra + espacio + acento (´, `, ^, etc.) o viceversa
+            limpio = limpio.replace(/([aeiou])\s+[´']/gi, '$1´');  // "a ´" → "a´"
+            limpio = limpio.replace(/[´']\s+([aeiou])/gi, '´$1');  // "´ a" → "´a"
+            // Unir el acento con la vocal (convertir a forma compuesta)
+            limpio = limpio.normalize('NFC');
+
+            // 3. Reemplazar caracteres de control y espacios extraños
+            limpio = limpio.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
+
+            // 4. Quitar espacios múltiples
+            limpio = limpio.replace(/\s+/g, ' ').trim();
+
+            // 5. (Opcional) Reemplazar "í" literal si aparece como "i" + combinación
+            //    Ya lo cubre normalize('NFC')
+
+            return limpio;
         }
 
         // ================== LECTURA DEL PDF ==================
@@ -210,26 +226,28 @@
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                // Extraer texto plano manteniendo el orden
+                // Extraer texto plano
                 let pageText = textContent.items.map(item => item.str).join(' ');
-                // Limpiar solo saltos de línea excesivos y espacios múltiples
+                // Limpiar espacios y caracteres raros
                 pageText = pageText.replace(/\s+/g, ' ').trim();
                 textoCompleto += pageText + "\n";
             }
 
-            return textoCompleto;
+            // Aplicar limpieza profunda
+            const textoLimpio = limpiarTexto(textoCompleto);
+            return textoLimpio;
         }
 
         // ================== MOTOR DE BÚSQUEDA ==================
         function buscarEnPDF(pregunta) {
-            if (!pdfText || pdfText.length < 50) {
+            if (!pdfTextLimpio || pdfTextLimpio.length < 50) {
                 return "⚠️ Primero carga un PDF válido con texto extraíble.";
             }
 
-            // Extraer palabras clave de la pregunta (descartar palabras muy comunes)
+            // Extraer palabras clave (descartar stopwords)
             const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'en', 'para', 'por', 'con',
                 'sin', 'sobre', 'entre', 'hasta', 'desde', 'según', 'durante', 'mediante', 'qué', 'cómo', 'cuál', 'cuáles',
-                'quién', 'quienes', 'dónde', 'cuándo', 'por qué', 'para qué'
+                'quién', 'quienes', 'dónde', 'cuándo', 'por qué', 'para qué', 'es', 'son', 'está', 'están'
             ];
             const palabras = pregunta.toLowerCase().split(/\s+/)
                 .map(p => p.replace(/[.,;:!?¿¡()"']/g, ''))
@@ -239,30 +257,29 @@
                 return "📖 No pude identificar palabras clave en tu pregunta. Intenta reformularla.";
             }
 
-            // Dividir el PDF en oraciones (por puntos y signos de interrogación/exclamación)
-            const oraciones = pdfText.split(/[.!?;]+/).map(o => o.trim()).filter(o => o.length > 20);
+            // Dividir en oraciones (por puntos, signos de interrogación/exclamación)
+            const oraciones = pdfTextLimpio.split(/[.!?;]+/).map(o => o.trim()).filter(o => o.length > 20);
 
-            // Calcular puntaje para cada oración
+            // Calcular puntaje
             const puntajes = oraciones.map(oracion => {
-                const lowerOracion = oracion.toLowerCase();
-                // Normalizar la oración para comparar sin acentos (opcional)
-                const normOracion = normalize(lowerOracion);
-                const normPalabras = palabras.map(p => normalize(p));
+                const lower = oracion.toLowerCase();
+                // Normalizar sin acentos para la comparación
+                const normOracion = normalizeForCompare(lower);
+                const normPalabras = palabras.map(p => normalizeForCompare(p));
 
                 let puntaje = 0;
                 for (let pal of normPalabras) {
                     if (normOracion.includes(pal)) {
-                        puntaje += 2; // coincidencia exacta
+                        puntaje += 2;
                     }
                 }
                 // Bonus si aparecen varias palabras juntas
                 const count = normPalabras.filter(p => normOracion.includes(p)).length;
-                if (count > 1) puntaje += count;
+                if (count > 1) puntaje += count * 2;
 
                 return { texto: oracion, puntaje };
             });
 
-            // Ordenar por puntaje descendente
             puntajes.sort((a, b) => b.puntaje - a.puntaje);
             const mejores = puntajes.filter(p => p.puntaje > 0);
 
@@ -270,12 +287,11 @@
                 return "📖 No encontré información relevante en el PDF para tu pregunta.\n\n💡 Intenta usar palabras clave más concretas.";
             }
 
-            // Construir respuesta con los fragmentos más relevantes (máximo 3)
+            // Construir respuesta con hasta 3 fragmentos
             let respuesta = "📄 **Fragmentos encontrados en el PDF:**\n\n";
             const maxFragmentos = Math.min(3, mejores.length);
             for (let i = 0; i < maxFragmentos; i++) {
                 let texto = mejores[i].texto;
-                // Acortar si es muy largo
                 if (texto.length > 600) texto = texto.substring(0, 600) + '...';
                 respuesta += `📌 ${texto}.\n\n`;
             }
@@ -293,19 +309,19 @@
             pdfStatus.innerHTML = "⏳ Leyendo PDF...";
 
             try {
-                pdfText = await leerPDF(file);
+                pdfTextLimpio = await leerPDF(file);
 
-                if (pdfText.length < 100) {
+                if (pdfTextLimpio.length < 100) {
                     throw new Error("El PDF parece estar escaneado o no tiene texto extraíble.");
                 }
 
                 // Mostrar vista previa
                 extractBox.style.display = 'block';
-                const preview = pdfText.substring(0, 400) + (pdfText.length > 400 ? '...' : '');
+                const preview = pdfTextLimpio.substring(0, 400) + (pdfTextLimpio.length > 400 ? '...' : '');
                 extractedPreview.textContent = preview;
 
                 pageInfo.textContent = `📄 Páginas: ${pdfPages}`;
-                pdfStatus.innerHTML = `✅ <strong>${file.name}</strong><br>📄 ${pdfPages} páginas, ${Math.round(pdfText.length/1000)} KB`;
+                pdfStatus.innerHTML = `✅ <strong>${file.name}</strong><br>📄 ${pdfPages} páginas, ${Math.round(pdfTextLimpio.length/1000)} KB`;
 
                 addMessage(`📚 PDF cargado correctamente: "${file.name}"\n📄 ${pdfPages} páginas extraídas.\n\n💬 ¡Pregúntame sobre cualquier tema que aparece en el documento!`, 'bot');
 
@@ -313,7 +329,7 @@
                 console.error(error);
                 pdfStatus.innerHTML = `❌ Error: ${error.message}`;
                 addMessage(`❌ Error al leer el PDF: ${error.message}`, 'bot');
-                pdfText = "";
+                pdfTextLimpio = "";
             }
         });
 
@@ -322,7 +338,6 @@
             const question = userInput.value.trim();
             if (!question) return;
 
-            // Actualizar métricas
             questionCounter++;
             document.getElementById('questionCount').textContent = questionCounter;
             const shortQ = question.length > 40 ? question.substring(0, 40) + '...' : question;
