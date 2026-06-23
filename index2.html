@@ -292,7 +292,7 @@
             const maxFragmentos = Math.min(3, mejores.length);
             for (let i = 0; i < maxFragmentos; i++) {
                 let texto = mejores[i].texto;
-                if (texto.length > 600) texto = texto.substring(0, 600) + '...';
+                if (texto.length > 700) texto = texto.substring(0, 700) + '...';
                 respuesta += `📌 ${texto}.\n\n`;
             }
             respuesta += "💡 *Estas son citas textuales extraídas del documento.*";
