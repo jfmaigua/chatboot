@@ -157,10 +157,8 @@
         const extractedPreview = document.getElementById('extractedPreview');
         const pageInfo = document.getElementById('pageInfo');
 
-        let pdfText = "";
-        let pdfTextLimpio = "";   // texto normalizado para mostrar y buscar
+        let pdfTextLimpio = "";
         let pdfPages = 0;
-        let pdfName = "";
         let questionCounter = 0;
         let timerSeconds = 0;
         let timerInterval = null;
@@ -187,12 +185,10 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        // Normalizar texto para comparaciones (quita acentos)
         function normalizeForCompare(str) {
             return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         }
 
-        // ================== LIMPIEZA AVANZADA DE TEXTO ==================
         function limpiarTexto(texto) {
             let limpio = texto.normalize('NFC');
             limpio = limpio.replace(/([aeiou])\s+[´']/gi, '$1´');
@@ -217,12 +213,10 @@
                 pageText = pageText.replace(/\s+/g, ' ').trim();
                 textoCompleto += pageText + "\n";
             }
-
-            const textoLimpio = limpiarTexto(textoCompleto);
-            return textoLimpio;
+            return limpiarTexto(textoCompleto);
         }
 
-        // ================== MOTOR DE BÚSQUEDA (MODIFICADO) ==================
+        // ================== MOTOR DE BÚSQUEDA (corte por punto) ==================
         function buscarEnPDF(pregunta) {
             if (!pdfTextLimpio || pdfTextLimpio.length < 50) {
                 return "⚠️ Primero carga un PDF válido con texto extraíble.";
@@ -243,19 +237,14 @@
             const oraciones = pdfTextLimpio.split(/[.!?;]+/).map(o => o.trim()).filter(o => o.length > 20);
 
             const puntajes = oraciones.map(oracion => {
-                const lower = oracion.toLowerCase();
-                const normOracion = normalizeForCompare(lower);
+                const normOracion = normalizeForCompare(oracion.toLowerCase());
                 const normPalabras = palabras.map(p => normalizeForCompare(p));
-
                 let puntaje = 0;
                 for (let pal of normPalabras) {
-                    if (normOracion.includes(pal)) {
-                        puntaje += 2;
-                    }
+                    if (normOracion.includes(pal)) puntaje += 2;
                 }
                 const count = normPalabras.filter(p => normOracion.includes(p)).length;
                 if (count > 1) puntaje += count * 2;
-
                 return { texto: oracion, puntaje };
             });
 
@@ -270,37 +259,40 @@
             const maxFragmentos = Math.min(3, mejores.length);
             for (let i = 0; i < maxFragmentos; i++) {
                 let texto = mejores[i].texto;
-                // 🔥 Límite aumentado a 800 caracteres y corte por palabra completa
+                // 🔥 TRUNCAMIENTO POR PUNTO (no por espacio)
                 if (texto.length > 800) {
                     let truncado = texto.substring(0, 800);
-                    let ultimoEspacio = truncado.lastIndexOf(' ');
-                    if (ultimoEspacio > 0) {
-                        texto = truncado.substring(0, ultimoEspacio) + '...';
+                    let ultimoPunto = truncado.lastIndexOf('.');
+                    if (ultimoPunto > 0) {
+                        // Incluimos el punto y añadimos "..."
+                        texto = truncado.substring(0, ultimoPunto + 1) + '...';
                     } else {
-                        texto = truncado + '...';
+                        // Fallback: si no hay punto, cortar por espacio
+                        let ultimoEspacio = truncado.lastIndexOf(' ');
+                        if (ultimoEspacio > 0) {
+                            texto = truncado.substring(0, ultimoEspacio) + '...';
+                        } else {
+                            texto = truncado + '...';
+                        }
                     }
                 }
-                respuesta += `📌 ${texto}.\n\n`;
+                respuesta += `📌 ${texto}\n\n`;
             }
             respuesta += "💡 *Estas son citas textuales extraídas del documento.*";
 
             return respuesta;
         }
 
-        // ================== MANEJO DE CARGA DE PDF ==================
+        // ================== CARGA DE PDF ==================
         pdfUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            pdfName = file.name;
             pdfStatus.innerHTML = "⏳ Leyendo PDF...";
 
             try {
                 pdfTextLimpio = await leerPDF(file);
-
-                if (pdfTextLimpio.length < 100) {
-                    throw new Error("El PDF parece estar escaneado o no tiene texto extraíble.");
-                }
+                if (pdfTextLimpio.length < 100) throw new Error("El PDF parece estar escaneado o no tiene texto extraíble.");
 
                 extractBox.style.display = 'block';
                 const preview = pdfTextLimpio.substring(0, 400) + (pdfTextLimpio.length > 400 ? '...' : '');
@@ -330,10 +322,7 @@
             document.getElementById('lastQuestion').textContent = shortQ;
 
             addMessage(question, 'user');
-
-            const respuesta = buscarEnPDF(question);
-            addMessage(respuesta, 'bot');
-
+            addMessage(buscarEnPDF(question), 'bot');
             userInput.value = "";
         }
 
@@ -342,11 +331,8 @@
             addMessage("🧹 Chat limpiado. ¡Sigue preguntando sobre el PDF!", 'bot');
         }
 
-        // ================== EVENTOS ==================
         sendBtn.addEventListener('click', handleQuestion);
-        userInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleQuestion();
-        });
+        userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleQuestion(); });
         clearChatBtn.addEventListener('click', clearChat);
     </script>
 </body>
